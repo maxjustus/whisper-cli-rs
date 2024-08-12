@@ -6,27 +6,33 @@ use std::process::Stdio;
 use std::{fs::File, process::Command};
 
 // ffmpeg -i input.mp3 -ar 16000 output.wav
-fn use_ffmpeg<P: AsRef<Path>>(input_path: P) -> Result<Vec<i16>> {
+fn use_ffmpeg<P: AsRef<Path>>(input_path: P, filter: Option<String>) -> Result<Vec<i16>> {
     let temp_file = temp_dir().join(format!("{}.wav", uuid::Uuid::new_v4()));
+    let filter = filter.unwrap_or_else(|| "pan=mono|c0=0.5*c0+0.5*c1".to_string());
+
+    let args = [
+        "-i",
+        input_path
+            .as_ref()
+            .to_str()
+            .ok_or_else(|| anyhow!("invalid path"))?,
+        "-ar",
+        "16000",
+        "-ac",
+        "1",
+        "-af",
+        &filter,
+        "-c:a",
+        "pcm_s16le",
+        (temp_file.to_str().unwrap()),
+        "-hide_banner",
+        "-y",
+        "-loglevel",
+        "error",
+    ];
+
     let mut pid = Command::new("ffmpeg")
-        .args([
-            "-i",
-            input_path
-                .as_ref()
-                .to_str()
-                .ok_or_else(|| anyhow!("invalid path"))?,
-            "-ar",
-            "16000",
-            "-ac",
-            "1",
-            "-c:a",
-            "pcm_s16le",
-            (temp_file.to_str().unwrap()),
-            "-hide_banner",
-            "-y",
-            "-loglevel",
-            "error",
-        ])
+        .args(args)
         .stdin(Stdio::null())
         .spawn()?;
 
@@ -41,7 +47,7 @@ fn use_ffmpeg<P: AsRef<Path>>(input_path: P) -> Result<Vec<i16>> {
     }
 }
 
-pub fn read_file<P: AsRef<Path>>(audio_file_path: P) -> Result<Vec<f32>> {
-    let audio_buf = use_ffmpeg(&audio_file_path)?;
+pub fn read_file<P: AsRef<Path>>(audio_file_path: P, filter: Option<String>) -> Result<Vec<f32>> {
+    let audio_buf = use_ffmpeg(&audio_file_path, filter)?;
     Ok(whisper_rs::convert_integer_to_float_audio(&audio_buf))
 }

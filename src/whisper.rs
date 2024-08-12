@@ -340,6 +340,7 @@ impl Whisper {
         audio: P,
         translate: bool,
         word_timestamps: bool,
+        ffmpeg_filter: Option<String>,
     ) -> Result<Transcript> {
         let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
 
@@ -351,7 +352,7 @@ impl Whisper {
         params.set_token_timestamps(word_timestamps);
         params.set_language(self.lang.map(Into::into));
 
-        let audio = ffmpeg_decoder::read_file(audio)?;
+        let audio = ffmpeg_decoder::read_file(audio, ffmpeg_filter)?;
 
         let st = Instant::now();
         let mut state = self.ctx.create_state().expect("failed to create state");

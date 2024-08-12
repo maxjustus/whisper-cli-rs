@@ -31,9 +31,17 @@ struct Args {
     #[clap(short, long, default_value = "false")]
     translate: bool,
 
+    /// Set a relative output directory
+    #[clap(short, long)]
+    relative_output_dir: Option<String>,
+
     /// Generate timestamps for each word
     #[clap(short, long, default_value = "false")]
     karaoke: bool,
+
+    /// Custom ffmpeg filter
+    #[clap(short, long)]
+    ffmpeg_filter: Option<String>,
 }
 
 #[tokio::main]
@@ -55,21 +63,37 @@ async fn main() {
 
     let mut whisper = Whisper::new(Model::new(args.model), args.lang).await;
     let transcript = whisper
-        .transcribe(audio, args.translate, args.karaoke)
+        .transcribe(audio, args.translate, args.karaoke, args.ffmpeg_filter)
         .unwrap();
 
+    let output_dir = audio
+        .with_file_name("")
+        .join(args.relative_output_dir.unwrap_or(String::from("")));
+    std::fs::create_dir_all(&output_dir).unwrap();
+
+    println!("{}", transcript.as_text());
+    println!("writing to {:?}", output_dir);
+    println!(
+        "text location: {:?}",
+        output_dir.join(format!("{file_name}.txt"))
+    );
+
     write_to(
-        audio.with_file_name(format!("{file_name}.txt")),
+        output_dir.join(format!("{file_name}.txt")),
         &transcript.as_text(),
     );
     write_to(
-        audio.with_file_name(format!("{file_name}.vtt")),
+        output_dir.join(format!("{file_name}.vtt")),
         &transcript.as_vtt(),
     );
     write_to(
-        audio.with_file_name(format!("{file_name}.srt")),
+        output_dir.join(format!("{file_name}.srt")),
         &transcript.as_srt(),
     );
+    // TODO: json output
+    // TODO: recursive directory search
+    // TODO: support custom ffmpeg filter
+    // maybe a serve mode with a small HTTP API? Post a file - get a transcript back
 
     println!("time: {:?}", transcript.processing_time);
 }
